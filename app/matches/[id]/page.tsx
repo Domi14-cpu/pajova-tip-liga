@@ -573,21 +573,22 @@ export default function MatchDetailPage() {
                 </div>
               )}
 
-              {!isOpen &&
-  prediction &&
-  prediction.points !== null && (
-    <div className="mt-4 rounded-xl border border-amber-400/20 bg-amber-400/10 p-4 text-center">
-      <p className="text-xs font-bold uppercase tracking-wider text-amber-300">
-        Získané body
-      </p>
+                          {!isOpen &&
+                prediction !== null &&
+                prediction.points !== null && (
+                  <div className="mt-4 rounded-xl border border-amber-400/20 bg-amber-400/10 p-4 text-center">
+                    <p className="text-xs font-bold uppercase tracking-wider text-amber-300">
+                      Získané body
+                    </p>
 
-      <p className="mt-2 text-3xl font-black text-amber-400">
-        {prediction.points > 0
-          ? `+${prediction.points}`
-          : prediction.points}
-      </p>
-    </div>
-  )}
+                    <p className="mt-2 text-3xl font-black text-amber-400">
+                      {prediction.points > 0
+                        ? `+${prediction.points}`
+                        : prediction.points}
+                    </p>
+                  </div>
+                )}
+
             </form>
           </div>
         </article>
