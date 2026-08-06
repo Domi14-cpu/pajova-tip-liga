@@ -33,7 +33,10 @@ type Prediction = {
   points: number | null;
 };
 
-function getStatusLabel(status: MatchStatus, isOpen: boolean) {
+function getStatusLabel(
+  status: MatchStatus,
+  isOpen: boolean
+) {
   if (isOpen) {
     return "Tipování otevřeno";
   }
@@ -53,7 +56,10 @@ function getStatusLabel(status: MatchStatus, isOpen: boolean) {
   return "Tipování uzavřeno";
 }
 
-function getStatusClasses(status: MatchStatus, isOpen: boolean) {
+function getStatusClasses(
+  status: MatchStatus,
+  isOpen: boolean
+) {
   if (isOpen) {
     return "border-green-500/25 bg-green-500/10 text-green-300";
   }
@@ -108,6 +114,7 @@ export default function MatchDetailPage() {
 
     if (!Number.isInteger(matchId) || matchId <= 0) {
       setMessage("Neplatné ID zápasu.");
+      setMatch(null);
       setLoading(false);
       return;
     }
@@ -138,6 +145,7 @@ export default function MatchDetailPage() {
           ? `Zápas se nepodařilo načíst: ${matchError.message}`
           : "Zápas nebyl nalezen."
       );
+
       setMatch(null);
       setLoading(false);
       return;
@@ -147,9 +155,10 @@ export default function MatchDetailPage() {
 
     const {
       data: { user },
+      error: userError,
     } = await supabase.auth.getUser();
 
-    if (!user) {
+    if (userError || !user) {
       setPrediction(null);
       setHomeTip("");
       setAwayTip("");
@@ -171,12 +180,14 @@ export default function MatchDetailPage() {
       setMessage(
         `Uložený tip se nepodařilo načíst: ${predictionError.message}`
       );
+
       setLoading(false);
       return;
     }
 
     if (predictionData) {
-      const savedPrediction = predictionData as Prediction;
+      const savedPrediction =
+        predictionData as Prediction;
 
       setPrediction(savedPrediction);
       setHomeTip(String(savedPrediction.home_score));
@@ -244,8 +255,6 @@ export default function MatchDetailPage() {
 
     setSaving(true);
 
-    let saveError: Error | null = null;
-
     if (prediction) {
       const { error } = await supabase
         .from("predictions")
@@ -258,8 +267,14 @@ export default function MatchDetailPage() {
         .eq("user_id", user.id);
 
       if (error) {
-        saveError = new Error(error.message);
+        setSaving(false);
+        setMessage(
+          `Tip se nepodařilo upravit: ${error.message}`
+        );
+        return;
       }
+
+      setMessage("Tip byl úspěšně upraven.");
     } else {
       const { error } = await supabase
         .from("predictions")
@@ -271,25 +286,17 @@ export default function MatchDetailPage() {
         });
 
       if (error) {
-        saveError = new Error(error.message);
+        setSaving(false);
+        setMessage(
+          `Tip se nepodařilo uložit: ${error.message}`
+        );
+        return;
       }
+
+      setMessage("Tip byl úspěšně uložen.");
     }
 
     setSaving(false);
-
-    if (saveError) {
-      setMessage(
-        `Tip se nepodařilo uložit: ${saveError.message}`
-      );
-      return;
-    }
-
-    setMessage(
-      prediction
-        ? "Tip byl úspěšně upraven."
-        : "Tip byl úspěšně uložen."
-    );
-
     await loadPage(true);
   }
 
@@ -344,6 +351,9 @@ export default function MatchDetailPage() {
     match.status === "finished" &&
     match.home_score !== null &&
     match.away_score !== null;
+
+  const predictionPoints =
+    prediction?.points ?? null;
 
   return (
     <main className="min-h-screen overflow-hidden bg-[#080808] text-white">
@@ -432,7 +442,8 @@ export default function MatchDetailPage() {
                     </p>
 
                     <p className="mt-2 whitespace-nowrap text-2xl font-black text-amber-400 sm:text-4xl">
-                      {match.home_score} : {match.away_score}
+                      {match.home_score} :{" "}
+                      {match.away_score}
                     </p>
                   </div>
                 ) : (
@@ -572,22 +583,21 @@ export default function MatchDetailPage() {
                   )}
                 </div>
               )}
-              {!isOpen &&
-                prediction !== null &&
-                prediction.points !== null && (
-                  <div className="mt-4 rounded-xl border border-amber-400/20 bg-amber-400/10 p-4 text-center">
-                    <p className="text-xs font-bold uppercase tracking-wider text-amber-300">
-                      Získané body
-                    </p>
 
-                    <p className="mt-2 text-3xl font-black text-amber-400">
-                      {prediction.points > 0
-                        ? `+${prediction.points}`
-                        : prediction.points}
-                    </p>
-                  </div>
-                )}
-             </form>
+              {!isOpen && predictionPoints !== null && (
+                <div className="mt-4 rounded-xl border border-amber-400/20 bg-amber-400/10 p-4 text-center">
+                  <p className="text-xs font-bold uppercase tracking-wider text-amber-300">
+                    Získané body
+                  </p>
+
+                  <p className="mt-2 text-3xl font-black text-amber-400">
+                    {predictionPoints > 0
+                      ? `+${predictionPoints}`
+                      : predictionPoints}
+                  </p>
+                </div>
+              )}
+            </form>
           </div>
         </article>
       </section>
