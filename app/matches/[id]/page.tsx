@@ -572,8 +572,7 @@ export default function MatchDetailPage() {
                   )}
                 </div>
               )}
-
-                          {!isOpen &&
+              {!isOpen &&
                 prediction !== null &&
                 prediction.points !== null && (
                   <div className="mt-4 rounded-xl border border-amber-400/20 bg-amber-400/10 p-4 text-center">
@@ -588,8 +587,7 @@ export default function MatchDetailPage() {
                     </p>
                   </div>
                 )}
-
-            </form>
+             </form>
           </div>
         </article>
       </section>
