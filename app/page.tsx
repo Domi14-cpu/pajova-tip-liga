@@ -56,10 +56,14 @@ export default function Home() {
         data: { session },
       } = await supabase.auth.getSession();
 
-      if (session) {
-        router.replace("/dashboard");
-        return;
-      }
+      const wantsRules =
+  typeof window !== "undefined" &&
+  window.location.hash === "#jak-to-funguje";
+
+if (session && !wantsRules) {
+  router.replace("/dashboard");
+  return;
+}
 
       const now = new Date().toISOString();
 
