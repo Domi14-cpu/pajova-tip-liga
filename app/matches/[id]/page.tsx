@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
@@ -11,11 +12,20 @@ type MatchStatus =
   | "finished"
   | "cancelled";
 
+type Team = {
+  id: number;
+  name: string;
+  short_name: string | null;
+  logo_url: string | null;
+};
+
 type Match = {
   id: number;
   competition: string;
   home_team: string;
   away_team: string;
+  home_team_id: number | null;
+  away_team_id: number | null;
   starts_at: string;
   status: MatchStatus;
   home_score: number | null;
@@ -37,21 +47,10 @@ function getStatusLabel(
   status: MatchStatus,
   isOpen: boolean
 ) {
-  if (isOpen) {
-    return "Tipování otevřeno";
-  }
-
-  if (status === "live") {
-    return "Právě probíhá";
-  }
-
-  if (status === "finished") {
-    return "Ukončeno";
-  }
-
-  if (status === "cancelled") {
-    return "Zrušeno";
-  }
+  if (isOpen) return "Tipování otevřeno";
+  if (status === "live") return "Právě probíhá";
+  if (status === "finished") return "Ukončeno";
+  if (status === "cancelled") return "Zrušeno";
 
   return "Tipování uzavřeno";
 }
@@ -95,6 +94,9 @@ export default function MatchDetailPage() {
   const matchId = Number(params.id);
 
   const [match, setMatch] = useState<Match | null>(null);
+  const [homeTeam, setHomeTeam] = useState<Team | null>(null);
+  const [awayTeam, setAwayTeam] = useState<Team | null>(null);
+
   const [prediction, setPrediction] =
     useState<Prediction | null>(null);
 
@@ -127,6 +129,8 @@ export default function MatchDetailPage() {
           competition,
           home_team,
           away_team,
+          home_team_id,
+          away_team_id,
           starts_at,
           status,
           home_score,
@@ -151,7 +155,48 @@ export default function MatchDetailPage() {
       return;
     }
 
-    setMatch(matchData as Match);
+    const loadedMatch = matchData as Match;
+
+    setMatch(loadedMatch);
+
+    const teamIds = [
+      loadedMatch.home_team_id,
+      loadedMatch.away_team_id,
+    ].filter((id): id is number => id !== null);
+
+    if (teamIds.length > 0) {
+      const { data: teamsData, error: teamsError } =
+        await supabase
+          .from("teams")
+          .select("id, name, short_name, logo_url")
+          .in("id", teamIds);
+
+      if (teamsError) {
+        setMessage(
+          `Loga týmů se nepodařilo načíst: ${teamsError.message}`
+        );
+      } else {
+        const teams =
+          (teamsData as Team[] | null) ?? [];
+
+        setHomeTeam(
+          teams.find(
+            (team) =>
+              team.id === loadedMatch.home_team_id
+          ) ?? null
+        );
+
+        setAwayTeam(
+          teams.find(
+            (team) =>
+              team.id === loadedMatch.away_team_id
+          ) ?? null
+        );
+      }
+    } else {
+      setHomeTeam(null);
+      setAwayTeam(null);
+    }
 
     const {
       data: { user },
@@ -355,6 +400,16 @@ export default function MatchDetailPage() {
   const predictionPoints =
     prediction?.points ?? null;
 
+  const homeName =
+    homeTeam?.short_name ||
+    homeTeam?.name ||
+    match.home_team;
+
+  const awayName =
+    awayTeam?.short_name ||
+    awayTeam?.name ||
+    match.away_team;
+
   return (
     <main className="min-h-screen overflow-hidden bg-[#080808] text-white">
       <section className="relative border-b border-white/10">
@@ -421,12 +476,22 @@ export default function MatchDetailPage() {
 
             <div className="mt-10 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 sm:mt-14 sm:gap-8">
               <div className="min-w-0 text-center sm:text-right">
-                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-black/40 text-3xl sm:ml-auto sm:mr-0 sm:h-20 sm:w-20">
-                  🏠
+                <div className="mx-auto flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-black/40 sm:ml-auto sm:mr-0 sm:h-28 sm:w-28">
+                  {homeTeam?.logo_url ? (
+                    <Image
+                      src={homeTeam.logo_url}
+                      alt={homeName}
+                      width={112}
+                      height={112}
+                      className="h-full w-full object-contain p-2 sm:p-3"
+                    />
+                  ) : (
+                    <span className="text-3xl">🏠</span>
+                  )}
                 </div>
 
                 <p className="mt-4 break-words text-base font-black leading-5 sm:text-2xl sm:leading-8">
-                  {match.home_team}
+                  {homeName}
                 </p>
 
                 <p className="mt-2 text-[10px] font-bold uppercase tracking-wider text-zinc-600">
@@ -454,12 +519,22 @@ export default function MatchDetailPage() {
               </div>
 
               <div className="min-w-0 text-center sm:text-left">
-                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-black/40 text-3xl sm:ml-0 sm:mr-auto sm:h-20 sm:w-20">
-                  ✈️
+                <div className="mx-auto flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-black/40 sm:ml-0 sm:mr-auto sm:h-28 sm:w-28">
+                  {awayTeam?.logo_url ? (
+                    <Image
+                      src={awayTeam.logo_url}
+                      alt={awayName}
+                      width={112}
+                      height={112}
+                      className="h-full w-full object-contain p-2 sm:p-3"
+                    />
+                  ) : (
+                    <span className="text-3xl">✈️</span>
+                  )}
                 </div>
 
                 <p className="mt-4 break-words text-base font-black leading-5 sm:text-2xl sm:leading-8">
-                  {match.away_team}
+                  {awayName}
                 </p>
 
                 <p className="mt-2 text-[10px] font-bold uppercase tracking-wider text-zinc-600">
@@ -491,7 +566,7 @@ export default function MatchDetailPage() {
               <div className="mt-7 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-3 sm:gap-5">
                 <label className="min-w-0">
                   <span className="mb-2 block truncate text-center text-xs font-bold text-zinc-500">
-                    {match.home_team}
+                    {homeName}
                   </span>
 
                   <input
@@ -505,7 +580,7 @@ export default function MatchDetailPage() {
                     }
                     disabled={!isOpen}
                     required
-                    aria-label={`Skóre pro ${match.home_team}`}
+                    aria-label={`Skóre pro ${homeName}`}
                     className="h-20 w-full min-w-0 rounded-2xl border border-white/10 bg-[#111111] px-2 text-center text-3xl font-black outline-none transition focus:border-amber-400 disabled:cursor-not-allowed disabled:opacity-50 sm:h-24 sm:text-4xl"
                   />
                 </label>
@@ -516,7 +591,7 @@ export default function MatchDetailPage() {
 
                 <label className="min-w-0">
                   <span className="mb-2 block truncate text-center text-xs font-bold text-zinc-500">
-                    {match.away_team}
+                    {awayName}
                   </span>
 
                   <input
@@ -530,7 +605,7 @@ export default function MatchDetailPage() {
                     }
                     disabled={!isOpen}
                     required
-                    aria-label={`Skóre pro ${match.away_team}`}
+                    aria-label={`Skóre pro ${awayName}`}
                     className="h-20 w-full min-w-0 rounded-2xl border border-white/10 bg-[#111111] px-2 text-center text-3xl font-black outline-none transition focus:border-amber-400 disabled:cursor-not-allowed disabled:opacity-50 sm:h-24 sm:text-4xl"
                   />
                 </label>
