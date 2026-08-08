@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Bell } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -240,23 +241,37 @@ export default function DashboardPage() {
     <main className="min-h-screen bg-[#080808] text-white">
       <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-5 sm:py-12">
         <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br from-zinc-900 to-black p-7 sm:p-10">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_20%,rgba(251,191,36,0.13),transparent_40%)]" />
+  <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_20%,rgba(251,191,36,0.13),transparent_40%)]" />
 
-          <div className="relative">
-            <p className="font-bold uppercase tracking-[0.22em] text-amber-400">
-              Pájova Tip Liga
-            </p>
+  <div className="relative flex items-start justify-between gap-4">
+    <div>
+      <p className="font-bold uppercase tracking-[0.22em] text-amber-400">
+        Pájova Tip Liga
+      </p>
 
-            <h1 className="mt-3 text-4xl font-black sm:text-5xl">
-              Ahoj, {firstName} 👋
-            </h1>
+      <h1 className="mt-3 text-4xl font-black sm:text-5xl">
+        Ahoj, {firstName} 👋
+      </h1>
 
-            <p className="mt-4 max-w-2xl leading-7 text-zinc-400">
-              Tady vidíš svoje aktuální body, pořadí, statistiky a
-              nejbližší zápasy k tipování.
-            </p>
-          </div>
-        </section>
+      <p className="mt-4 max-w-2xl leading-7 text-zinc-400">
+        Tady vidíš svoje aktuální body, pořadí, statistiky a
+        nejbližší zápasy k tipování.
+      </p>
+    </div>
+
+    <button
+      type="button"
+      className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/5 transition hover:border-amber-400/40 hover:bg-white/10"
+      aria-label="Oznámení"
+    >
+      <Bell size={22} />
+
+      <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-400 px-1 text-[10px] font-black text-black">
+        0
+      </span>
+    </button>
+  </div>
+</section>
 
         {message && (
           <div className="mt-6 rounded-2xl border border-red-500/20 bg-red-500/10 p-5 text-red-300">
