@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
@@ -31,6 +32,8 @@ type Player = {
 };
 
 export default function Home() {
+  const router = useRouter();
+
   const [featuredMatch, setFeaturedMatch] =
     useState<FeaturedMatch | null>(null);
 
@@ -48,6 +51,15 @@ export default function Home() {
     async function loadHomepage() {
       setLoading(true);
       setMessage("");
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (session) {
+        router.replace("/dashboard");
+        return;
+      }
 
       const now = new Date().toISOString();
 
@@ -127,27 +139,31 @@ export default function Home() {
         ].filter((id): id is number => id !== null);
 
         if (teamIds.length > 0) {
-          const { data: teamsData, error: teamsError } = await supabase
-            .from("teams")
-            .select("id, name, short_name, logo_url")
-            .in("id", teamIds);
+          const { data: teamsData, error: teamsError } =
+            await supabase
+              .from("teams")
+              .select("id, name, short_name, logo_url")
+              .in("id", teamIds);
 
           if (teamsError) {
             setMessage(
               `Nepodařilo se načíst týmy: ${teamsError.message}`
             );
           } else {
-            const loadedTeams = (teamsData as Team[] | null) ?? [];
+            const loadedTeams =
+              (teamsData as Team[] | null) ?? [];
 
             setHomeTeam(
               loadedTeams.find(
-                (team) => team.id === loadedMatch.home_team_id
+                (team) =>
+                  team.id === loadedMatch.home_team_id
               ) ?? null
             );
 
             setAwayTeam(
               loadedTeams.find(
-                (team) => team.id === loadedMatch.away_team_id
+                (team) =>
+                  team.id === loadedMatch.away_team_id
               ) ?? null
             );
           }
@@ -158,7 +174,7 @@ export default function Home() {
     }
 
     loadHomepage();
-  }, []);
+  }, [router]);
 
   const kickoff = featuredMatch
     ? new Date(featuredMatch.starts_at)
@@ -220,6 +236,7 @@ export default function Home() {
                 <p className="text-3xl font-black text-amber-400">
                   {playersCount}
                 </p>
+
                 <p className="mt-1 text-sm font-bold uppercase tracking-wider text-zinc-500">
                   Tipérů
                 </p>
@@ -229,6 +246,7 @@ export default function Home() {
                 <p className="text-3xl font-black text-amber-400">
                   {matchesCount}
                 </p>
+
                 <p className="mt-1 text-sm font-bold uppercase tracking-wider text-zinc-500">
                   Zápasů
                 </p>
@@ -260,6 +278,7 @@ export default function Home() {
                     <p>
                       {kickoff.toLocaleDateString("cs-CZ")}
                     </p>
+
                     <p className="mt-1">
                       {kickoff.toLocaleTimeString("cs-CZ", {
                         hour: "2-digit",
@@ -294,6 +313,7 @@ export default function Home() {
                     <p className="text-xs font-black uppercase text-zinc-600">
                       VS
                     </p>
+
                     <p className="mt-3 text-2xl font-black text-amber-400">
                       – : –
                     </p>
