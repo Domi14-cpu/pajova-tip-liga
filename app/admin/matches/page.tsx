@@ -753,7 +753,7 @@ export default function AdminMatchesPage() {
 
     setCreating(true);
 
-    const { error } = await supabase
+    const { data: insertedMatch, error } = await supabase
       .from("matches")
       .insert({
         sport_id: selectedSportId,
@@ -769,22 +769,59 @@ export default function AdminMatchesPage() {
         status: "scheduled",
         home_score: null,
         away_score: null,
-      });
+      })
+      .select("id")
+      .single();
 
-    setCreating(false);
-
-    if (error) {
+    if (error || !insertedMatch) {
+      setCreating(false);
       setMessage(
-        `Zápas se nepodařilo přidat: ${error.message}`
+        `Zápas se nepodařilo přidat: ${
+          error?.message ?? "Nepodařilo se získat ID nového zápasu."
+        }`
       );
       return;
     }
 
+    const { data: users, error: usersError } = await supabase
+      .from("profiles")
+      .select("id");
+
+    let notificationWarning = "";
+
+    if (usersError) {
+      notificationWarning =
+        ` Upozornění se nepodařilo připravit: ${usersError.message}`;
+    } else if (users && users.length > 0) {
+      const notifications = users.map((user) => ({
+        user_id: user.id,
+        title: "⚽ Nový zápas",
+        message: `${selectedHomeTeam.name} – ${selectedAwayTeam.name} byl přidán. Nezapomeň tipovat!`,
+        type: "new_match",
+        match_id: insertedMatch.id,
+        read: false,
+      }));
+
+      const { error: notificationError } = await supabase
+        .from("notifications")
+        .insert(notifications);
+
+      if (notificationError) {
+        notificationWarning =
+          ` Upozornění se nepodařilo vytvořit: ${notificationError.message}`;
+      }
+    }
+
+    setCreating(false);
     setCompetitionId("");
     setHomeTeamId("");
     setAwayTeamId("");
     setStartsAt("");
-    setMessage("Zápas byl úspěšně přidán.");
+    setMessage(
+      notificationWarning
+        ? `Zápas byl přidán.${notificationWarning}`
+        : "Zápas byl úspěšně přidán a všem uživatelům bylo vytvořeno upozornění."
+    );
 
     await loadData();
   }
