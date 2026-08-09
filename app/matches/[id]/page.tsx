@@ -43,6 +43,15 @@ type Prediction = {
   points: number | null;
 };
 
+type PublicPrediction = {
+  id: number;
+  user_id: string;
+  home_score: number;
+  away_score: number;
+  points: number | null;
+  nickname: string;
+};
+
 function getStatusLabel(
   status: MatchStatus,
   isOpen: boolean
@@ -87,6 +96,34 @@ function getMessageClasses(message: string) {
   return "border-red-500/20 bg-red-500/10 text-red-300";
 }
 
+function getPointsClasses(points: number | null) {
+  if (points === null) {
+    return "text-zinc-500";
+  }
+
+  if (points > 0) {
+    return "text-green-400";
+  }
+
+  if (points < 0) {
+    return "text-red-400";
+  }
+
+  return "text-zinc-300";
+}
+
+function formatPoints(points: number | null) {
+  if (points === null) {
+    return "–";
+  }
+
+  if (points > 0) {
+    return `+${points}`;
+  }
+
+  return String(points);
+}
+
 export default function MatchDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -100,6 +137,13 @@ export default function MatchDetailPage() {
   const [prediction, setPrediction] =
     useState<Prediction | null>(null);
 
+  const [publicPredictions, setPublicPredictions] = useState<
+    PublicPrediction[]
+  >([]);
+
+  const [currentUserId, setCurrentUserId] =
+    useState<string | null>(null);
+
   const [homeTip, setHomeTip] = useState("");
   const [awayTip, setAwayTip] = useState("");
 
@@ -107,14 +151,118 @@ export default function MatchDetailPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
-  async function loadPage(preserveMessage = false) {
+  async function loadPublicPredictions(
+    loadedMatch: Match
+  ) {
+    if (loadedMatch.status !== "finished") {
+      setPublicPredictions([]);
+      return;
+    }
+
+    const { data: predictionsData, error: predictionsError } =
+      await supabase
+        .from("predictions")
+        .select(
+          "id, user_id, home_score, away_score, points"
+        )
+        .eq("match_id", loadedMatch.id);
+
+    if (predictionsError) {
+      console.error(
+        "Tipy ostatních se nepodařilo načíst:",
+        predictionsError
+      );
+
+      setPublicPredictions([]);
+      return;
+    }
+
+    const predictions =
+      (predictionsData as
+        | {
+            id: number;
+            user_id: string;
+            home_score: number;
+            away_score: number;
+            points: number | null;
+          }[]
+        | null) ?? [];
+
+    if (predictions.length === 0) {
+      setPublicPredictions([]);
+      return;
+    }
+
+    const userIds = Array.from(
+      new Set(predictions.map((item) => item.user_id))
+    );
+
+    const { data: profilesData, error: profilesError } =
+      await supabase
+        .from("profiles")
+        .select("id, nickname")
+        .in("id", userIds);
+
+    if (profilesError) {
+      console.error(
+        "Profily tipérů se nepodařilo načíst:",
+        profilesError
+      );
+    }
+
+    const profiles =
+      (profilesData as
+        | {
+            id: string;
+            nickname: string | null;
+          }[]
+        | null) ?? [];
+
+    const combined: PublicPrediction[] =
+      predictions.map((item) => {
+        const profile = profiles.find(
+          (profileItem) =>
+            profileItem.id === item.user_id
+        );
+
+        return {
+          ...item,
+          nickname:
+            profile?.nickname ||
+            `Tipér ${item.user_id.slice(0, 5)}`,
+        };
+      });
+
+    combined.sort((a, b) => {
+      const pointsA = a.points ?? -999;
+      const pointsB = b.points ?? -999;
+
+      if (pointsB !== pointsA) {
+        return pointsB - pointsA;
+      }
+
+      return a.nickname.localeCompare(
+        b.nickname,
+        "cs"
+      );
+    });
+
+    setPublicPredictions(combined);
+  }
+
+  async function loadPage(
+    preserveMessage = false
+  ) {
     setLoading(true);
 
     if (!preserveMessage) {
       setMessage("");
     }
 
-    if (!Number.isInteger(matchId) || matchId <= 0) {
+    if (
+      !Number.isInteger(matchId) ||
+      matchId <= 0
+    ) {
       setMessage("Neplatné ID zápasu.");
       setMatch(null);
       setLoading(false);
@@ -162,14 +310,20 @@ export default function MatchDetailPage() {
     const teamIds = [
       loadedMatch.home_team_id,
       loadedMatch.away_team_id,
-    ].filter((id): id is number => id !== null);
+    ].filter(
+      (id): id is number => id !== null
+    );
 
     if (teamIds.length > 0) {
-      const { data: teamsData, error: teamsError } =
-        await supabase
-          .from("teams")
-          .select("id, name, short_name, logo_url")
-          .in("id", teamIds);
+      const {
+        data: teamsData,
+        error: teamsError,
+      } = await supabase
+        .from("teams")
+        .select(
+          "id, name, short_name, logo_url"
+        )
+        .in("id", teamIds);
 
       if (teamsError) {
         setMessage(
@@ -182,14 +336,16 @@ export default function MatchDetailPage() {
         setHomeTeam(
           teams.find(
             (team) =>
-              team.id === loadedMatch.home_team_id
+              team.id ===
+              loadedMatch.home_team_id
           ) ?? null
         );
 
         setAwayTeam(
           teams.find(
             (team) =>
-              team.id === loadedMatch.away_team_id
+              team.id ===
+              loadedMatch.away_team_id
           ) ?? null
         );
       }
@@ -204,19 +360,29 @@ export default function MatchDetailPage() {
     } = await supabase.auth.getUser();
 
     if (userError || !user) {
+      setCurrentUserId(null);
       setPrediction(null);
       setHomeTip("");
       setAwayTip("");
+
+      await loadPublicPredictions(
+        loadedMatch
+      );
+
       setLoading(false);
       return;
     }
+
+    setCurrentUserId(user.id);
 
     const {
       data: predictionData,
       error: predictionError,
     } = await supabase
       .from("predictions")
-      .select("id, home_score, away_score, points")
+      .select(
+        "id, home_score, away_score, points"
+      )
       .eq("match_id", matchId)
       .eq("user_id", user.id)
       .maybeSingle();
@@ -235,13 +401,21 @@ export default function MatchDetailPage() {
         predictionData as Prediction;
 
       setPrediction(savedPrediction);
-      setHomeTip(String(savedPrediction.home_score));
-      setAwayTip(String(savedPrediction.away_score));
+      setHomeTip(
+        String(savedPrediction.home_score)
+      );
+      setAwayTip(
+        String(savedPrediction.away_score)
+      );
     } else {
       setPrediction(null);
       setHomeTip("");
       setAwayTip("");
     }
+
+    await loadPublicPredictions(
+      loadedMatch
+    );
 
     setLoading(false);
   }
@@ -256,8 +430,11 @@ export default function MatchDetailPage() {
     event.preventDefault();
     setMessage("");
 
-    const parsedHomeTip = Number(homeTip);
-    const parsedAwayTip = Number(awayTip);
+    const parsedHomeTip =
+      Number(homeTip);
+
+    const parsedAwayTip =
+      Number(awayTip);
 
     if (
       !Number.isInteger(parsedHomeTip) ||
@@ -282,11 +459,14 @@ export default function MatchDetailPage() {
     }
 
     if (!match) {
-      setMessage("Zápas není načtený.");
+      setMessage(
+        "Zápas není načtený."
+      );
       return;
     }
 
-    const kickoff = new Date(match.starts_at);
+    const kickoff =
+      new Date(match.starts_at);
 
     if (
       match.status !== "scheduled" ||
@@ -306,20 +486,25 @@ export default function MatchDetailPage() {
         .update({
           home_score: parsedHomeTip,
           away_score: parsedAwayTip,
-          updated_at: new Date().toISOString(),
+          updated_at:
+            new Date().toISOString(),
         })
         .eq("id", prediction.id)
         .eq("user_id", user.id);
 
       if (error) {
         setSaving(false);
+
         setMessage(
           `Tip se nepodařilo upravit: ${error.message}`
         );
+
         return;
       }
 
-      setMessage("Tip byl úspěšně upraven.");
+      setMessage(
+        "Tip byl úspěšně upraven."
+      );
     } else {
       const { error } = await supabase
         .from("predictions")
@@ -332,16 +517,21 @@ export default function MatchDetailPage() {
 
       if (error) {
         setSaving(false);
+
         setMessage(
           `Tip se nepodařilo uložit: ${error.message}`
         );
+
         return;
       }
 
-      setMessage("Tip byl úspěšně uložen.");
+      setMessage(
+        "Tip byl úspěšně uložen."
+      );
     }
 
     setSaving(false);
+
     await loadPage(true);
   }
 
@@ -371,14 +561,18 @@ export default function MatchDetailPage() {
           </Link>
 
           <div className="mt-6 rounded-[2rem] border border-red-500/20 bg-red-500/10 p-7 text-center text-red-300">
-            <span className="text-5xl">⚠️</span>
+            <span className="text-5xl">
+              ⚠️
+            </span>
 
             <h1 className="mt-5 text-2xl font-black">
-              Zápas se nepodařilo zobrazit
+              Zápas se nepodařilo
+              zobrazit
             </h1>
 
             <p className="mt-3">
-              {message || "Zápas nebyl nalezen."}
+              {message ||
+                "Zápas nebyl nalezen."}
             </p>
           </div>
         </div>
@@ -386,7 +580,8 @@ export default function MatchDetailPage() {
     );
   }
 
-  const kickoff = new Date(match.starts_at);
+  const kickoff =
+    new Date(match.starts_at);
 
   const isOpen =
     match.status === "scheduled" &&
@@ -432,7 +627,8 @@ export default function MatchDetailPage() {
               <div className="min-w-0">
                 <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-400 sm:text-sm">
                   {match.sports?.[0]?.icon}{" "}
-                  {match.sports?.[0]?.name || "Sport"}
+                  {match.sports?.[0]?.name ||
+                    "Sport"}
                 </p>
 
                 <h1 className="mt-3 break-words text-2xl font-black sm:text-4xl">
@@ -446,30 +642,43 @@ export default function MatchDetailPage() {
                   isOpen
                 )}`}
               >
-                {getStatusLabel(match.status, isOpen)}
+                {getStatusLabel(
+                  match.status,
+                  isOpen
+                )}
               </span>
             </div>
 
             <div className="mt-6 flex items-center gap-3 rounded-2xl border border-white/10 bg-black/40 px-4 py-4">
-              <span className="text-xl">📅</span>
+              <span className="text-xl">
+                📅
+              </span>
 
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
                 <span className="font-black">
-                  {kickoff.toLocaleDateString("cs-CZ", {
-                    weekday: "long",
-                    day: "numeric",
-                    month: "long",
-                    year: "numeric",
-                  })}
+                  {kickoff.toLocaleDateString(
+                    "cs-CZ",
+                    {
+                      weekday: "long",
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    }
+                  )}
                 </span>
 
-                <span className="text-zinc-600">·</span>
+                <span className="text-zinc-600">
+                  ·
+                </span>
 
                 <span className="font-black text-amber-400">
-                  {kickoff.toLocaleTimeString("cs-CZ", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
+                  {kickoff.toLocaleTimeString(
+                    "cs-CZ",
+                    {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    }
+                  )}
                 </span>
               </div>
             </div>
@@ -486,7 +695,9 @@ export default function MatchDetailPage() {
                       className="h-full w-full object-contain p-2 sm:p-3"
                     />
                   ) : (
-                    <span className="text-3xl">🏠</span>
+                    <span className="text-3xl">
+                      🏠
+                    </span>
                   )}
                 </div>
 
@@ -529,7 +740,9 @@ export default function MatchDetailPage() {
                       className="h-full w-full object-contain p-2 sm:p-3"
                     />
                   ) : (
-                    <span className="text-3xl">✈️</span>
+                    <span className="text-3xl">
+                      ✈️
+                    </span>
                   )}
                 </div>
 
@@ -559,7 +772,9 @@ export default function MatchDetailPage() {
                 </h2>
 
                 <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-zinc-400">
-                  Tip můžeš změnit až do začátku zápasu.
+                  {isOpen
+                    ? "Tip můžeš změnit až do začátku zápasu."
+                    : "Tipování tohoto zápasu už je uzavřené."}
                 </p>
               </div>
 
@@ -576,7 +791,9 @@ export default function MatchDetailPage() {
                     inputMode="numeric"
                     value={homeTip}
                     onChange={(event) =>
-                      setHomeTip(event.target.value)
+                      setHomeTip(
+                        event.target.value
+                      )
                     }
                     disabled={!isOpen}
                     required
@@ -601,7 +818,9 @@ export default function MatchDetailPage() {
                     inputMode="numeric"
                     value={awayTip}
                     onChange={(event) =>
-                      setAwayTip(event.target.value)
+                      setAwayTip(
+                        event.target.value
+                      )
                     }
                     disabled={!isOpen}
                     required
@@ -648,33 +867,215 @@ export default function MatchDetailPage() {
               ) : (
                 <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.035] p-4 text-center">
                   <p className="font-black text-zinc-300">
-                    🔒 Tipování tohoto zápasu je uzavřené
+                    🔒 Tipování tohoto
+                    zápasu je uzavřené
                   </p>
 
                   {!prediction && (
                     <p className="mt-2 text-sm text-zinc-500">
-                      Na tento zápas nemáš uložený tip.
+                      Na tento zápas nemáš
+                      uložený tip.
                     </p>
                   )}
                 </div>
               )}
 
-              {!isOpen && predictionPoints !== null && (
-                <div className="mt-4 rounded-xl border border-amber-400/20 bg-amber-400/10 p-4 text-center">
-                  <p className="text-xs font-bold uppercase tracking-wider text-amber-300">
-                    Získané body
-                  </p>
+              {!isOpen &&
+                predictionPoints !==
+                  null && (
+                  <div className="mt-4 rounded-xl border border-amber-400/20 bg-amber-400/10 p-4 text-center">
+                    <p className="text-xs font-bold uppercase tracking-wider text-amber-300">
+                      Získané body
+                    </p>
 
-                  <p className="mt-2 text-3xl font-black text-amber-400">
-                    {predictionPoints > 0
-                      ? `+${predictionPoints}`
-                      : predictionPoints}
-                  </p>
-                </div>
-              )}
+                    <p
+                      className={`mt-2 text-3xl font-black ${getPointsClasses(
+                        predictionPoints
+                      )}`}
+                    >
+                      {formatPoints(
+                        predictionPoints
+                      )}
+                    </p>
+                  </div>
+                )}
             </form>
           </div>
         </article>
+
+        {/* TIPY OSTATNÍCH */}
+        {match.status === "finished" && (
+          <section className="mt-8 overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/[0.035] sm:mt-10 sm:rounded-[2rem]">
+            <div className="border-b border-white/10 p-5 sm:p-7">
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-400">
+                👥 Tipy ostatních
+              </p>
+
+              <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <h2 className="text-2xl font-black sm:text-3xl">
+                    Jak tipovali ostatní?
+                  </h2>
+
+                  <p className="mt-2 text-sm leading-6 text-zinc-400">
+                    Tipy se zobrazují až po
+                    ukončení zápasu.
+                  </p>
+                </div>
+
+                <p className="text-sm font-bold text-zinc-500">
+                  {publicPredictions.length}{" "}
+                  {publicPredictions.length ===
+                  1
+                    ? "tip"
+                    : "tipů"}
+                </p>
+              </div>
+            </div>
+
+            {publicPredictions.length ===
+            0 ? (
+              <div className="p-8 text-center sm:p-10">
+                <span className="text-4xl">
+                  🤷
+                </span>
+
+                <p className="mt-4 font-black">
+                  Zatím tu nejsou žádné
+                  veřejné tipy.
+                </p>
+
+                <p className="mt-2 text-sm text-zinc-500">
+                  Pokud víš, že tipovalo více
+                  hráčů, může být ještě potřeba
+                  upravit RLS pravidla tabulky
+                  predictions.
+                </p>
+              </div>
+            ) : (
+              <div>
+                <div className="hidden grid-cols-[60px_1fr_110px_90px] border-b border-white/10 bg-black/30 px-6 py-3 text-xs font-black uppercase tracking-wider text-zinc-600 sm:grid">
+                  <span>#</span>
+                  <span>Tipér</span>
+                  <span className="text-center">
+                    Tip
+                  </span>
+                  <span className="text-right">
+                    Body
+                  </span>
+                </div>
+
+                {publicPredictions.map(
+                  (item, index) => {
+                    const isCurrentUser =
+                      item.user_id ===
+                      currentUserId;
+
+                    return (
+                      <div
+                        key={item.id}
+                        className={`border-b border-white/10 p-4 last:border-b-0 sm:grid sm:grid-cols-[60px_1fr_110px_90px] sm:items-center sm:px-6 sm:py-4 ${
+                          isCurrentUser
+                            ? "bg-amber-400/[0.07]"
+                            : ""
+                        }`}
+                      >
+                        <div className="flex items-center justify-between sm:block">
+                          <span
+                            className={`font-black ${
+                              index === 0
+                                ? "text-amber-400"
+                                : "text-zinc-500"
+                            }`}
+                          >
+                            {index + 1}.
+                          </span>
+
+                          <span className="text-xs font-bold text-zinc-600 sm:hidden">
+                            {isCurrentUser
+                              ? "TY"
+                              : ""}
+                          </span>
+                        </div>
+
+                        <div className="mt-3 flex min-w-0 items-center gap-3 sm:mt-0">
+                          <div
+                            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-black ${
+                              isCurrentUser
+                                ? "bg-amber-400 text-black"
+                                : "bg-zinc-800 text-white"
+                            }`}
+                          >
+                            {item.nickname
+                              .charAt(0)
+                              .toUpperCase()}
+                          </div>
+
+                          <div className="min-w-0">
+                            <p className="truncate font-black">
+                              {item.nickname}
+                              {isCurrentUser && (
+                                <span className="ml-2 text-xs font-black text-amber-400">
+                                  TY
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 flex items-center justify-between sm:mt-0 sm:block">
+                          <span className="text-xs font-bold uppercase text-zinc-600 sm:hidden">
+                            Tip
+                          </span>
+
+                          <p className="text-right text-xl font-black sm:text-center">
+                            {item.home_score} :{" "}
+                            {item.away_score}
+                          </p>
+                        </div>
+
+                        <div className="mt-2 flex items-center justify-between sm:mt-0 sm:block">
+                          <span className="text-xs font-bold uppercase text-zinc-600 sm:hidden">
+                            Body
+                          </span>
+
+                          <p
+                            className={`text-right text-xl font-black ${getPointsClasses(
+                              item.points
+                            )}`}
+                          >
+                            {formatPoints(
+                              item.points
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  }
+                )}
+              </div>
+            )}
+          </section>
+        )}
+
+        {match.status !== "finished" && (
+          <section className="mt-8 rounded-[1.5rem] border border-white/10 bg-white/[0.025] p-6 text-center sm:mt-10 sm:rounded-[2rem]">
+            <span className="text-3xl">
+              🔒
+            </span>
+
+            <h2 className="mt-3 text-lg font-black">
+              Tipy ostatních jsou skryté
+            </h2>
+
+            <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-zinc-500">
+              Aby byla soutěž férová,
+              tipy ostatních hráčů se
+              odemknou až po ukončení
+              zápasu.
+            </p>
+          </section>
+        )}
       </section>
     </main>
   );
