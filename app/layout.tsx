@@ -1,4 +1,5 @@
 import Navbar from "@/components/Navbar";
+import PushServiceWorker from "@/components/PushServiceWorker";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -18,16 +19,21 @@ export const metadata: Metadata = {
   description: "Sportovní tipovací platforma",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
     <html
-      lang="en"
+      lang="cs"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-[#080808] text-white">
-  <Navbar />
-  {children}
-</body>
+      <body className="min-h-screen bg-[#080808] text-white">
+        <PushServiceWorker />
+        <Navbar />
+        {children}
+      </body>
     </html>
   );
 }
