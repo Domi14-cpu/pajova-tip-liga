@@ -460,34 +460,23 @@ export default function AdminUsersPage() {
     setMessage("");
 
     try {
-      if (user.is_admin) {
-        const { error } = await supabase
-          .from("admins")
-          .delete()
-          .eq("user_id", user.id);
-
-        if (error) {
-          throw new Error(error.message);
+      const { error } = await supabase.rpc(
+        "admin_set_user_role",
+        {
+          p_user_id: user.id,
+          p_is_admin: !user.is_admin,
         }
+      );
 
-        setMessage(
-          `Uživateli ${user.nickname} byla odebrána role administrátora.`
-        );
-      } else {
-        const { error } = await supabase
-          .from("admins")
-          .insert({
-            user_id: user.id,
-          });
-
-        if (error) {
-          throw new Error(error.message);
-        }
-
-        setMessage(
-          `Uživatel ${user.nickname} je nyní administrátor.`
-        );
+      if (error) {
+        throw new Error(error.message);
       }
+
+      setMessage(
+        user.is_admin
+          ? `Uživateli ${user.nickname} byla odebrána role administrátora.`
+          : `Uživatel ${user.nickname} je nyní administrátor.`
+      );
 
       await loadUsers();
     } catch (error) {
