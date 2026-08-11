@@ -23,6 +23,24 @@ export default function Navbar() {
   const [loadingUser, setLoadingUser] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [profileNickname, setProfileNickname] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+
+  async function loadNavbarProfile(userId: string) {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("nickname, avatar_url")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Profil v navigaci se nepodařilo načíst:", error);
+      return;
+    }
+
+    setProfileNickname(data?.nickname ?? "");
+    setAvatarUrl(data?.avatar_url ?? null);
+  }
 
   useEffect(() => {
     async function checkAdmin(userId: string) {
@@ -43,9 +61,14 @@ export default function Navbar() {
       setUser(currentUser);
 
       if (currentUser) {
-        await checkAdmin(currentUser.id);
+        await Promise.all([
+          checkAdmin(currentUser.id),
+          loadNavbarProfile(currentUser.id),
+        ]);
       } else {
         setIsAdmin(false);
+        setProfileNickname("");
+        setAvatarUrl(null);
       }
 
       setLoadingUser(false);
@@ -62,9 +85,14 @@ export default function Navbar() {
         setUser(currentUser);
 
         if (currentUser) {
-          await checkAdmin(currentUser.id);
+          await Promise.all([
+            checkAdmin(currentUser.id),
+            loadNavbarProfile(currentUser.id),
+          ]);
         } else {
           setIsAdmin(false);
+          setProfileNickname("");
+          setAvatarUrl(null);
         }
 
         setLoadingUser(false);
@@ -79,6 +107,20 @@ export default function Navbar() {
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    function refreshProfile() {
+      if (user) {
+        loadNavbarProfile(user.id);
+      }
+    }
+
+    window.addEventListener("profile-updated", refreshProfile);
+
+    return () => {
+      window.removeEventListener("profile-updated", refreshProfile);
+    };
+  }, [user]);
 
   async function handleLogout() {
     setLoggingOut(true);
@@ -197,8 +239,16 @@ export default function Navbar() {
                       : "border-white/10 bg-white/[0.035] hover:border-amber-400/40"
                   }`}
                 >
-                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-400 font-black text-black">
-                    {nickname.charAt(0).toUpperCase()}
+                  <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg bg-amber-400 font-black text-black">
+                    {avatarUrl ? (
+                      <img
+                        src={avatarUrl}
+                        alt={nickname}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      nickname.charAt(0).toUpperCase()
+                    )}
                   </span>
 
                   <span className="max-w-32 truncate text-sm font-black">
@@ -297,8 +347,16 @@ export default function Navbar() {
               {user ? (
                 <div className="grid gap-3">
                   <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.035] px-4 py-3">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-400 font-black text-black">
-                      {nickname.charAt(0).toUpperCase()}
+                    <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-amber-400 font-black text-black">
+                      {avatarUrl ? (
+                        <img
+                          src={avatarUrl}
+                          alt={nickname}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        nickname.charAt(0).toUpperCase()
+                      )}
                     </span>
 
                     <div className="min-w-0">

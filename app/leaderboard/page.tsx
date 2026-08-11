@@ -10,6 +10,7 @@ type Player = {
   nickname: string;
   total_points: number;
   exact_predictions: number;
+  avatar_url: string | null;
 };
 
 export default function LeaderboardPage() {
@@ -21,7 +22,7 @@ export default function LeaderboardPage() {
     async function loadLeaderboard() {
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, nickname, total_points, exact_predictions")
+        .select("id, nickname, total_points, exact_predictions, avatar_url")
         .order("total_points", { ascending: false })
         .order("exact_predictions", { ascending: false });
 
@@ -103,8 +104,16 @@ export default function LeaderboardPage() {
                 </span>
 
                 <div className="flex min-w-0 items-center gap-3">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-400 font-black text-black">
-                    {nickname.charAt(0).toUpperCase()}
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-amber-400 font-black text-black">
+                    {player.avatar_url ? (
+                      <img
+                        src={player.avatar_url}
+                        alt={nickname}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      nickname.charAt(0).toUpperCase()
+                    )}
                   </div>
 
                   <span className="truncate font-black transition group-hover:text-amber-400">

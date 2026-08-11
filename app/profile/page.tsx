@@ -370,6 +370,7 @@ export default function ProfilePage() {
       setAvatarPreview(avatarUrl);
       setEditingProfile(false);
       setMessage("Profil byl úspěšně upraven.");
+      window.dispatchEvent(new Event("profile-updated"));
     } catch (error) {
       setMessage(
         error instanceof Error
@@ -425,6 +426,7 @@ export default function ProfilePage() {
       setAvatarFile(null);
       setAvatarPreview("");
       setMessage("Profilový obrázek byl odstraněn.");
+      window.dispatchEvent(new Event("profile-updated"));
     } catch (error) {
       setMessage(
         error instanceof Error

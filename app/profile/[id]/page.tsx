@@ -11,6 +11,7 @@ type Profile = {
   nickname: string | null;
   total_points: number;
   exact_predictions: number;
+  avatar_url: string | null;
 };
 
 type RankedProfile = {
@@ -57,7 +58,7 @@ export default function PublicProfilePage() {
       const [profileResult, rankingResult] = await Promise.all([
         supabase
           .from("profiles")
-          .select("id, nickname, total_points, exact_predictions")
+          .select("id, nickname, total_points, exact_predictions, avatar_url")
           .eq("id", playerId)
           .maybeSingle(),
         supabase
@@ -211,8 +212,16 @@ export default function PublicProfilePage() {
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_85%_20%,rgba(251,191,36,0.13),transparent_40%)]" />
 
         <div className="relative flex flex-col items-center text-center sm:flex-row sm:text-left">
-          <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-full border-4 border-amber-400/20 bg-amber-400 text-4xl font-black text-black shadow-xl shadow-amber-400/10">
-            {nickname.charAt(0).toUpperCase()}
+          <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-amber-400/20 bg-amber-400 text-4xl font-black text-black shadow-xl shadow-amber-400/10">
+            {profile.avatar_url ? (
+              <img
+                src={profile.avatar_url}
+                alt={nickname}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              nickname.charAt(0).toUpperCase()
+            )}
           </div>
 
           <div className="mt-5 min-w-0 sm:ml-7 sm:mt-0">
