@@ -273,7 +273,15 @@ export default function PublicProfilePage() {
             Tento tipér zatím nemá žádný veřejný ukončený tip.
           </div>
         ) : (
-          <div className="mt-6 grid gap-3">
+          <div className="mt-6">
+            <div className="mb-2 hidden grid-cols-[1fr_80px_80px_64px] gap-4 px-5 text-[10px] font-bold uppercase tracking-wider text-zinc-600 sm:grid">
+              <span>Zápas</span>
+              <span className="text-center">Tip</span>
+              <span className="text-center">Výsledek</span>
+              <span className="text-right">Body</span>
+            </div>
+
+            <div className="grid gap-3">
             {pastTips.map(({ match, prediction }) => {
               const points = prediction.points ?? 0;
 
@@ -281,7 +289,7 @@ export default function PublicProfilePage() {
                 <Link
                   key={match.id}
                   href={`/matches/${match.id}`}
-                  className="grid gap-4 rounded-2xl border border-white/10 bg-black/40 p-4 transition hover:border-amber-400/30 hover:bg-black/60 sm:grid-cols-[1fr_auto_auto] sm:items-center sm:p-5"
+                  className="grid gap-4 rounded-2xl border border-white/10 bg-black/40 p-4 transition hover:border-amber-400/30 hover:bg-black/60 sm:grid-cols-[1fr_80px_80px_64px] sm:items-center sm:p-5"
                 >
                   <div className="min-w-0">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-600">
@@ -292,16 +300,21 @@ export default function PublicProfilePage() {
                     </p>
                   </div>
 
-                  <div className="flex items-center justify-between gap-6 sm:block sm:text-center">
+                  <div className="flex items-center justify-between sm:block sm:text-center">
                     <span className="text-xs font-bold uppercase text-zinc-600 sm:hidden">
-                      Tip / výsledek
+                      Tip
                     </span>
                     <p className="font-black">
                       {prediction.home_score} : {prediction.away_score}
-                      <span className="mx-2 text-zinc-700">/</span>
-                      <span className="text-zinc-400">
-                        {match.home_score} : {match.away_score}
-                      </span>
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between sm:block sm:text-center">
+                    <span className="text-xs font-bold uppercase text-zinc-600 sm:hidden">
+                      Výsledek
+                    </span>
+                    <p className="font-black text-zinc-400">
+                      {match.home_score} : {match.away_score}
                     </p>
                   </div>
 
@@ -324,6 +337,7 @@ export default function PublicProfilePage() {
                 </Link>
               );
             })}
+            </div>
           </div>
         )}
       </section>
