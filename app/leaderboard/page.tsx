@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
+import { ChevronRight } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 type Player = {
@@ -19,12 +21,7 @@ export default function LeaderboardPage() {
     async function loadLeaderboard() {
       const { data, error } = await supabase
         .from("profiles")
-        .select(`
-          id,
-          nickname,
-          total_points,
-          exact_predictions
-        `)
+        .select("id, nickname, total_points, exact_predictions")
         .order("total_points", { ascending: false })
         .order("exact_predictions", { ascending: false });
 
@@ -61,21 +58,21 @@ export default function LeaderboardPage() {
 
         <p className="mt-4 max-w-2xl leading-7 text-zinc-400">
           Pořadí se automaticky aktualizuje po vyhodnocení každého zápasu.
+          Kliknutím na tipéra si zobrazíš jeho veřejný profil.
         </p>
       </section>
 
       <section className="mt-8 overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.035]">
-        <div className="grid grid-cols-[65px_1fr_100px_100px] border-b border-white/10 px-5 py-4 text-xs font-bold uppercase tracking-wider text-zinc-500 sm:grid-cols-[90px_1fr_150px_120px]">
+        <div className="hidden grid-cols-[90px_1fr_150px_120px_40px] border-b border-white/10 px-5 py-4 text-xs font-bold uppercase tracking-wider text-zinc-500 sm:grid">
           <span>Pořadí</span>
           <span>Tipér</span>
           <span className="text-center">Přesné tipy</span>
           <span className="text-right">Body</span>
+          <span />
         </div>
 
         {loading ? (
-          <p className="p-8 text-center text-zinc-400">
-            Načítám žebříček…
-          </p>
+          <p className="p-8 text-center text-zinc-400">Načítám žebříček…</p>
         ) : message ? (
           <p className="m-5 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-red-300">
             {message}
@@ -87,11 +84,13 @@ export default function LeaderboardPage() {
         ) : (
           players.map((player, index) => {
             const position = index + 1;
+            const nickname = player.nickname || "Tipér";
 
             return (
-              <article
+              <Link
                 key={player.id}
-                className="grid grid-cols-[65px_1fr_100px_100px] items-center border-b border-white/10 px-5 py-5 last:border-0 sm:grid-cols-[90px_1fr_150px_120px]"
+                href={`/profile/${player.id}`}
+                className="group grid grid-cols-[52px_1fr_auto] items-center gap-3 border-b border-white/10 px-4 py-5 transition last:border-0 hover:bg-white/[0.05] sm:grid-cols-[90px_1fr_150px_120px_40px] sm:px-5"
               >
                 <span
                   className={
@@ -105,22 +104,32 @@ export default function LeaderboardPage() {
 
                 <div className="flex min-w-0 items-center gap-3">
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-400 font-black text-black">
-                    {player.nickname.charAt(0).toUpperCase()}
+                    {nickname.charAt(0).toUpperCase()}
                   </div>
 
-                  <span className="truncate font-black">
-                    {player.nickname}
+                  <span className="truncate font-black transition group-hover:text-amber-400">
+                    {nickname}
                   </span>
                 </div>
 
-                <span className="text-center font-bold text-zinc-400">
+                <span className="hidden text-center font-bold text-zinc-400 sm:block">
                   {player.exact_predictions}
                 </span>
 
-                <span className="text-right text-xl font-black text-amber-400">
-                  {player.total_points}
-                </span>
-              </article>
+                <div className="text-right">
+                  <span className="text-xl font-black text-amber-400">
+                    {player.total_points}
+                  </span>
+                  <p className="text-[10px] font-bold uppercase text-zinc-600 sm:hidden">
+                    bodů
+                  </p>
+                </div>
+
+                <ChevronRight
+                  size={18}
+                  className="hidden text-zinc-600 transition group-hover:translate-x-1 group-hover:text-amber-400 sm:block"
+                />
+              </Link>
             );
           })
         )}
