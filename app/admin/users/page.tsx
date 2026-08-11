@@ -292,7 +292,7 @@ export default function AdminUsersPage() {
             ascending: false,
           }),
 
-        supabase.from("admins").select("user_id"),
+        supabase.rpc("admin_list_user_roles"),
 
         supabase.from("predictions").select("user_id"),
       ]);
