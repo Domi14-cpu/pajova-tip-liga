@@ -80,11 +80,10 @@ function EditUserModal({
     }
 
     if (
-      !Number.isInteger(parsedPoints) ||
-      parsedPoints < 0
+      !Number.isInteger(parsedPoints)
     ) {
       setLocalMessage(
-        "Body musí být nezáporné celé číslo."
+        "Body musí být celé číslo."
       );
       return;
     }
@@ -185,7 +184,6 @@ function EditUserModal({
 
             <input
               type="number"
-              min="0"
               step="1"
               value={totalPoints}
               onChange={(event) =>
@@ -403,14 +401,15 @@ export default function AdminUsersPage() {
     setMessage("");
 
     try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          nickname: values.nickname,
-          total_points: values.totalPoints,
-          exact_predictions: values.exactPredictions,
-        })
-        .eq("id", editingUser.id);
+      const { error } = await supabase.rpc(
+        "admin_update_user_profile",
+        {
+          p_user_id: editingUser.id,
+          p_nickname: values.nickname,
+          p_total_points: values.totalPoints,
+          p_exact_predictions: values.exactPredictions,
+        }
+      );
 
       if (error) {
         throw new Error(error.message);
@@ -520,13 +519,12 @@ export default function AdminUsersPage() {
     setMessage("");
 
     try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          total_points: 0,
-          exact_predictions: 0,
-        })
-        .eq("id", user.id);
+      const { error } = await supabase.rpc(
+        "admin_reset_user_statistics",
+        {
+          p_user_id: user.id,
+        }
+      );
 
       if (error) {
         throw new Error(error.message);
