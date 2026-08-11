@@ -130,6 +130,59 @@ export default function PushNotifications() {
     }
   }
 
+  async function disablePushNotifications() {
+    setLoading(true);
+    setMessage("");
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        setMessage("Pro vypnutí upozornění se musíš přihlásit.");
+        return;
+      }
+
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+
+      if (!subscription) {
+        setEnabled(false);
+        setMessage("Push upozornění už jsou vypnutá.");
+        return;
+      }
+
+      const { error: deleteError } = await supabase
+        .from("push_subscriptions")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("endpoint", subscription.endpoint);
+
+      if (deleteError) {
+        throw deleteError;
+      }
+
+      const unsubscribed = await subscription.unsubscribe();
+
+      if (!unsubscribed) {
+        throw new Error("Prohlížeč odběr upozornění neodhlásil.");
+      }
+
+      setEnabled(false);
+      setMessage("Push upozornění jsou vypnutá.");
+    } catch (error) {
+      console.error("Vypnutí push notifikací selhalo:", error);
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Push upozornění se nepodařilo vypnout."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
   if (!supported && !loading) {
     return (
       <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
@@ -163,14 +216,22 @@ export default function PushNotifications() {
 
         <button
           type="button"
-          onClick={enablePushNotifications}
-          disabled={loading || enabled}
-          className="rounded-xl bg-amber-400 px-5 py-3 font-black text-black transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
+          onClick={
+            enabled
+              ? disablePushNotifications
+              : enablePushNotifications
+          }
+          disabled={loading}
+          className={`rounded-xl px-5 py-3 font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${
+            enabled
+              ? "border border-red-500/30 bg-red-500/10 text-red-300 hover:bg-red-500 hover:text-white"
+              : "bg-amber-400 text-black hover:bg-amber-300"
+          }`}
         >
           {loading
             ? "Kontroluji…"
             : enabled
-              ? "✓ Upozornění zapnuta"
+              ? "Vypnout upozornění"
               : "Povolit upozornění"}
         </button>
       </div>
