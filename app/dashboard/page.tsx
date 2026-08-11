@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import PushNotifications from "@/components/PushNotifications";
 
 type Profile = {
   id: string;
@@ -712,6 +713,10 @@ export default function DashboardPage() {
             </div>
           </div>
         </section>
+
+        <div className="mt-5 sm:mt-8">
+          <PushNotifications />
+        </div>
 
         {message && (
           <div className="mt-5 rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-300 sm:mt-6 sm:p-5">
