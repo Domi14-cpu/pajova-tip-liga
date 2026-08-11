@@ -17,12 +17,35 @@ type RankedProfile = {
   id: string;
 };
 
+type FinishedMatch = {
+  id: number;
+  competition: string;
+  home_team: string;
+  away_team: string;
+  starts_at: string;
+  home_score: number;
+  away_score: number;
+};
+
+type Prediction = {
+  match_id: number;
+  home_score: number;
+  away_score: number;
+  points: number | null;
+};
+
+type PastTip = {
+  match: FinishedMatch;
+  prediction: Prediction;
+};
+
 export default function PublicProfilePage() {
   const params = useParams<{ id: string }>();
   const playerId = params.id;
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [rank, setRank] = useState(0);
+  const [pastTips, setPastTips] = useState<PastTip[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
@@ -63,6 +86,61 @@ export default function PublicProfilePage() {
         const position =
           rankedProfiles.findIndex((item) => item.id === playerId) + 1;
         setRank(position > 0 ? position : 0);
+      }
+
+      const { data: matchData, error: matchesError } = await supabase
+        .from("matches")
+        .select(
+          "id, competition, home_team, away_team, starts_at, home_score, away_score"
+        )
+        .eq("status", "finished")
+        .not("home_score", "is", null)
+        .not("away_score", "is", null)
+        .order("starts_at", { ascending: false })
+        .limit(50);
+
+      if (matchesError) {
+        console.error("Ukončené zápasy se nepodařilo načíst:", matchesError);
+        setPastTips([]);
+      } else {
+        const finishedMatches = (matchData ?? []) as FinishedMatch[];
+        const matchIds = finishedMatches.map((match) => match.id);
+
+        if (matchIds.length > 0) {
+          const { data: predictionData, error: predictionsError } =
+            await supabase
+              .from("predictions")
+              .select("match_id, home_score, away_score, points")
+              .eq("user_id", playerId)
+              .in("match_id", matchIds);
+
+          if (predictionsError) {
+            console.error(
+              "Veřejné tipy se nepodařilo načíst:",
+              predictionsError
+            );
+            setPastTips([]);
+          } else {
+            const predictions = (predictionData ?? []) as Prediction[];
+            const predictionByMatch = new Map(
+              predictions.map((prediction) => [
+                prediction.match_id,
+                prediction,
+              ])
+            );
+
+            setPastTips(
+              finishedMatches
+                .flatMap((match) => {
+                  const prediction = predictionByMatch.get(match.id);
+                  return prediction ? [{ match, prediction }] : [];
+                })
+                .slice(0, 10)
+            );
+          }
+        } else {
+          setPastTips([]);
+        }
       }
 
       setLoading(false);
@@ -177,6 +255,77 @@ export default function PublicProfilePage() {
             </article>
           );
         })}
+      </section>
+
+      <section className="mt-6 rounded-2xl border border-white/10 bg-white/[0.035] p-6 sm:p-8">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-amber-400">
+            Historie
+          </p>
+          <h2 className="mt-2 text-2xl font-black">Ukončené tipy</h2>
+          <p className="mt-2 text-sm text-zinc-500">
+            Zobrazují se pouze tipy k již ukončeným zápasům.
+          </p>
+        </div>
+
+        {pastTips.length === 0 ? (
+          <div className="mt-6 rounded-2xl border border-white/10 bg-black/40 p-7 text-center text-zinc-500">
+            Tento tipér zatím nemá žádný veřejný ukončený tip.
+          </div>
+        ) : (
+          <div className="mt-6 grid gap-3">
+            {pastTips.map(({ match, prediction }) => {
+              const points = prediction.points ?? 0;
+
+              return (
+                <Link
+                  key={match.id}
+                  href={`/matches/${match.id}`}
+                  className="grid gap-4 rounded-2xl border border-white/10 bg-black/40 p-4 transition hover:border-amber-400/30 hover:bg-black/60 sm:grid-cols-[1fr_auto_auto] sm:items-center sm:p-5"
+                >
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-600">
+                      {match.competition} · {new Date(match.starts_at).toLocaleDateString("cs-CZ")}
+                    </p>
+                    <p className="mt-2 truncate font-black">
+                      {match.home_team} – {match.away_team}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-6 sm:block sm:text-center">
+                    <span className="text-xs font-bold uppercase text-zinc-600 sm:hidden">
+                      Tip / výsledek
+                    </span>
+                    <p className="font-black">
+                      {prediction.home_score} : {prediction.away_score}
+                      <span className="mx-2 text-zinc-700">/</span>
+                      <span className="text-zinc-400">
+                        {match.home_score} : {match.away_score}
+                      </span>
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between sm:block sm:min-w-16 sm:text-right">
+                    <span className="text-xs font-bold uppercase text-zinc-600 sm:hidden">
+                      Body
+                    </span>
+                    <p
+                      className={`text-lg font-black ${
+                        points > 0
+                          ? "text-green-400"
+                          : points < 0
+                            ? "text-red-400"
+                            : "text-zinc-400"
+                      }`}
+                    >
+                      {points > 0 ? `+${points}` : points}
+                    </p>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
       </section>
 
       <section className="mt-6 rounded-2xl border border-white/10 bg-white/[0.035] p-6 sm:p-8">
