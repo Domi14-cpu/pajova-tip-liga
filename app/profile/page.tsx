@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 type Profile = {
@@ -11,6 +11,8 @@ type Profile = {
   total_points: number;
   exact_predictions: number;
   created_at: string;
+  avatar_url: string | null;
+  nickname_updated_at: string | null;
 };
 
 type Prediction = {
@@ -105,6 +107,11 @@ export default function ProfilePage() {
 
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [editNickname, setEditNickname] = useState("");
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState("");
+  const [savingProfile, setSavingProfile] = useState(false);
 
   useEffect(() => {
     async function loadProfile() {
@@ -131,7 +138,7 @@ export default function ProfilePage() {
         supabase
           .from("profiles")
           .select(
-            "id, nickname, total_points, exact_predictions, created_at"
+            "id, nickname, total_points, exact_predictions, created_at, avatar_url, nickname_updated_at"
           )
           .eq("id", user.id)
           .maybeSingle(),
@@ -191,6 +198,8 @@ export default function ProfilePage() {
         (predictionsResult.data as Prediction[] | null) ?? [];
 
       setProfile(loadedProfile);
+      setEditNickname(loadedProfile.nickname);
+      setAvatarPreview(loadedProfile.avatar_url ?? "");
 
       const leaderboard = leaderboardResult.data ?? [];
       const userPosition =
@@ -256,6 +265,176 @@ export default function ProfilePage() {
     loadProfile();
   }, [router]);
 
+  function handleAvatarChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null;
+    setMessage("");
+
+    if (!file) {
+      return;
+    }
+
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      setMessage("Avatar musí být obrázek JPG, PNG nebo WebP.");
+      event.target.value = "";
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      setMessage("Avatar může mít maximálně 2 MB.");
+      event.target.value = "";
+      return;
+    }
+
+    setAvatarFile(file);
+
+    const reader = new FileReader();
+    reader.onload = () => setAvatarPreview(String(reader.result ?? ""));
+    reader.readAsDataURL(file);
+  }
+
+  async function handleSaveProfile(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!profile) {
+      return;
+    }
+
+    const nickname = editNickname.trim();
+
+    if (nickname.length < 3 || nickname.length > 24) {
+      setMessage("Přezdívka musí mít 3 až 24 znaků.");
+      return;
+    }
+
+    setSavingProfile(true);
+    setMessage("");
+
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError || !user) {
+        throw new Error("Přihlášení už vypršelo.");
+      }
+
+      let avatarUrl = profile.avatar_url ?? "";
+
+      if (avatarFile) {
+        const { error: uploadError } = await supabase.storage
+          .from("avatars")
+          .upload(`${user.id}/avatar`, avatarFile, {
+            upsert: true,
+            contentType: avatarFile.type,
+            cacheControl: "3600",
+          });
+
+        if (uploadError) {
+          throw uploadError;
+        }
+
+        const { data: publicUrlData } = supabase.storage
+          .from("avatars")
+          .getPublicUrl(`${user.id}/avatar`);
+
+        avatarUrl = `${publicUrlData.publicUrl}?v=${Date.now()}`;
+      }
+
+      const { error: updateError } = await supabase.rpc(
+        "update_own_profile",
+        {
+          p_nickname: nickname,
+          p_avatar_url: avatarUrl,
+        }
+      );
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      setProfile((current) =>
+        current
+          ? {
+              ...current,
+              nickname,
+              avatar_url: avatarUrl || null,
+              nickname_updated_at:
+                nickname !== current.nickname
+                  ? new Date().toISOString()
+                  : current.nickname_updated_at,
+            }
+          : current
+      );
+      setAvatarFile(null);
+      setAvatarPreview(avatarUrl);
+      setEditingProfile(false);
+      setMessage("Profil byl úspěšně upraven.");
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Profil se nepodařilo upravit."
+      );
+    } finally {
+      setSavingProfile(false);
+    }
+  }
+
+  async function handleRemoveAvatar() {
+    if (!profile) {
+      return;
+    }
+
+    setSavingProfile(true);
+    setMessage("");
+
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError || !user) {
+        throw new Error("Přihlášení už vypršelo.");
+      }
+
+      const { error: deleteError } = await supabase.storage
+        .from("avatars")
+        .remove([`${user.id}/avatar`]);
+
+      if (deleteError) {
+        throw deleteError;
+      }
+
+      const { error: updateError } = await supabase.rpc(
+        "update_own_profile",
+        {
+          p_nickname: profile.nickname,
+          p_avatar_url: "",
+        }
+      );
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      setProfile((current) =>
+        current ? { ...current, avatar_url: null } : current
+      );
+      setAvatarFile(null);
+      setAvatarPreview("");
+      setMessage("Profilový obrázek byl odstraněn.");
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Profilový obrázek se nepodařilo odstranit."
+      );
+    } finally {
+      setSavingProfile(false);
+    }
+  }
   if (loading) {
     return (
       <main className="flex min-h-[calc(100vh-84px)] items-center justify-center px-5">
@@ -318,8 +497,16 @@ export default function ProfilePage() {
         <div className="relative mx-auto max-w-7xl px-5 py-16 sm:py-20">
           <div className="flex flex-col justify-between gap-8 md:flex-row md:items-end">
             <div className="flex items-center gap-5">
-              <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-[1.5rem] bg-amber-400 text-3xl font-black text-black shadow-xl shadow-amber-400/10 sm:h-24 sm:w-24 sm:text-4xl">
-                {profile.nickname.charAt(0).toUpperCase()}
+              <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-[1.5rem] bg-amber-400 text-3xl font-black text-black shadow-xl shadow-amber-400/10 sm:h-24 sm:w-24 sm:text-4xl">
+                {profile.avatar_url ? (
+                  <img
+                    src={profile.avatar_url}
+                    alt={profile.nickname}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  profile.nickname.charAt(0).toUpperCase()
+                )}
               </div>
 
               <div className="min-w-0">
@@ -338,6 +525,19 @@ export default function ProfilePage() {
             </div>
 
             <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setEditNickname(profile.nickname);
+                  setAvatarPreview(profile.avatar_url ?? "");
+                  setAvatarFile(null);
+                  setEditingProfile((current) => !current);
+                }}
+                className="rounded-xl border border-amber-400/30 bg-amber-400/10 px-6 py-3.5 font-black text-amber-300 transition hover:bg-amber-400 hover:text-black"
+              >
+                ✏️ Upravit profil
+              </button>
+
               <Link
                 href="/matches"
                 className="rounded-xl bg-amber-400 px-6 py-3.5 font-black text-black transition hover:-translate-y-0.5 hover:bg-amber-300"
@@ -368,6 +568,98 @@ export default function ProfilePage() {
         </section>
       )}
 
+      {editingProfile && (
+        <section className="mx-auto max-w-7xl px-5 pt-8">
+          <form
+            onSubmit={handleSaveProfile}
+            className="rounded-[2rem] border border-amber-400/20 bg-white/[0.035] p-6 sm:p-8"
+          >
+            <p className="font-bold uppercase tracking-[0.22em] text-amber-400">
+              Nastavení profilu
+            </p>
+            <h2 className="mt-2 text-2xl font-black">Upravit profil</h2>
+
+            <div className="mt-7 grid gap-6 md:grid-cols-[180px_1fr] md:items-start">
+              <div>
+                <div className="flex h-32 w-32 items-center justify-center overflow-hidden rounded-[1.5rem] bg-amber-400 text-4xl font-black text-black">
+                  {avatarPreview ? (
+                    <img
+                      src={avatarPreview}
+                      alt="Náhled avataru"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    editNickname.charAt(0).toUpperCase() || "?"
+                  )}
+                </div>
+
+                {profile.avatar_url && (
+                  <button
+                    type="button"
+                    onClick={handleRemoveAvatar}
+                    disabled={savingProfile}
+                    className="mt-3 text-sm font-bold text-red-300 transition hover:text-red-200 disabled:opacity-50"
+                  >
+                    Odstranit obrázek
+                  </button>
+                )}
+              </div>
+
+              <div className="grid gap-5">
+                <label>
+                  <span className="mb-2 block text-sm font-bold">
+                    Přezdívka
+                  </span>
+                  <input
+                    value={editNickname}
+                    onChange={(event) => setEditNickname(event.target.value)}
+                    minLength={3}
+                    maxLength={24}
+                    required
+                    className="w-full rounded-xl border border-white/10 bg-black px-4 py-3.5 outline-none focus:border-amber-400"
+                  />
+                  <span className="mt-2 block text-xs text-zinc-500">
+                    Přezdívku lze změnit jednou za 7 dní.
+                  </span>
+                </label>
+
+                <label>
+                  <span className="mb-2 block text-sm font-bold">
+                    Profilový obrázek
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={handleAvatarChange}
+                    className="block w-full rounded-xl border border-white/10 bg-black p-3 text-sm text-zinc-400 file:mr-4 file:rounded-lg file:border-0 file:bg-amber-400 file:px-4 file:py-2 file:font-black file:text-black"
+                  />
+                  <span className="mt-2 block text-xs text-zinc-500">
+                    JPG, PNG nebo WebP, maximálně 2 MB.
+                  </span>
+                </label>
+
+                <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setEditingProfile(false)}
+                    disabled={savingProfile}
+                    className="rounded-xl border border-white/10 px-5 py-3 font-black text-zinc-300 disabled:opacity-50"
+                  >
+                    Zrušit
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingProfile}
+                    className="rounded-xl bg-amber-400 px-6 py-3 font-black text-black transition hover:bg-amber-300 disabled:opacity-50"
+                  >
+                    {savingProfile ? "Ukládám…" : "Uložit profil"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </form>
+        </section>
+      )}
       <section className="mx-auto max-w-7xl px-5 py-10">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <article className="rounded-2xl border border-white/10 bg-white/[0.035] p-6">
