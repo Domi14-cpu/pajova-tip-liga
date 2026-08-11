@@ -812,6 +812,44 @@ export default function AdminMatchesPage() {
       }
     }
 
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session) {
+      notificationWarning +=
+        " Push upozornění se nepodařilo odeslat: chybí přihlášení.";
+    } else {
+      try {
+        const pushResponse = await fetch("/api/push/new-match", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ matchId: insertedMatch.id }),
+        });
+
+        const pushResult = (await pushResponse.json()) as {
+          sent?: number;
+          failed?: number;
+          error?: string;
+        };
+
+        if (!pushResponse.ok) {
+          notificationWarning += ` Push upozornění se nepodařilo odeslat: ${
+            pushResult.error ?? "Neznámá chyba serveru."
+          }`;
+        } else if ((pushResult.failed ?? 0) > 0) {
+          notificationWarning += ` Push upozornění se nepodařilo doručit na ${pushResult.failed} zařízení.`;
+        }
+      } catch (pushError) {
+        console.error("Volání Web Push endpointu selhalo:", pushError);
+        notificationWarning +=
+          " Push upozornění se nepodařilo odeslat.";
+      }
+    }
+
     setCreating(false);
     setCompetitionId("");
     setHomeTeamId("");
