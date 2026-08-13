@@ -24,6 +24,13 @@ type Competition = {
   season: string | null;
 };
 
+type Season = {
+  id: string;
+  name: string;
+  is_private: boolean;
+  is_active: boolean;
+};
+
 type Team = {
   id: number;
   sport_id: number;
@@ -524,6 +531,7 @@ export default function AdminMatchesPage() {
   const [competitions, setCompetitions] = useState<
     Competition[]
   >([]);
+  const [seasons, setSeasons] = useState<Season[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
 
@@ -532,6 +540,7 @@ export default function AdminMatchesPage() {
   const [homeTeamId, setHomeTeamId] = useState("");
   const [awayTeamId, setAwayTeamId] = useState("");
   const [startsAt, setStartsAt] = useState("");
+  const [seasonId, setSeasonId] = useState("");
 
   const [resultHome, setResultHome] = useState<
     Record<number, string>
@@ -560,6 +569,7 @@ export default function AdminMatchesPage() {
     const [
       sportsResult,
       competitionsResult,
+      seasonsResult,
       teamsResult,
       matchesResult,
     ] = await Promise.all([
@@ -572,6 +582,12 @@ export default function AdminMatchesPage() {
         .from("competitions")
         .select("id, sport_id, name, season")
         .order("name"),
+
+      supabase
+        .from("seasons")
+        .select("id, name, is_private, is_active")
+        .eq("is_active", true)
+        .order("starts_at", { ascending: false }),
 
       supabase
         .from("teams")
@@ -623,6 +639,12 @@ export default function AdminMatchesPage() {
       return;
     }
 
+    if (seasonsResult.error) {
+      setMessage(`Chyba sezón: ${seasonsResult.error.message}`);
+      setLoadingData(false);
+      return;
+    }
+
     if (matchesResult.error) {
       setMessage(
         `Chyba zápasů: ${matchesResult.error.message}`
@@ -640,6 +662,8 @@ export default function AdminMatchesPage() {
 
     setSports(loadedSports);
     setCompetitions(loadedCompetitions);
+    const loadedSeasons = (seasonsResult.data as Season[] | null) ?? [];
+    setSeasons(loadedSeasons);
     setTeams(loadedTeams);
     setMatches(loadedMatches);
 
@@ -665,6 +689,9 @@ export default function AdminMatchesPage() {
 
     if (!sportId && loadedSports.length > 0) {
       setSportId(String(loadedSports[0].id));
+    }
+    if (!seasonId && loadedSeasons.length > 0) {
+      setSeasonId(loadedSeasons[0].id);
     }
 
     setLoadingData(false);
@@ -721,6 +748,7 @@ export default function AdminMatchesPage() {
       (competition) =>
         competition.id === Number(competitionId)
     );
+    const selectedSeason = seasons.find((season) => season.id === seasonId);
 
     const selectedHomeTeam = teams.find(
       (team) => team.id === Number(homeTeamId)
@@ -732,10 +760,11 @@ export default function AdminMatchesPage() {
 
     if (
       !selectedCompetition ||
+      !selectedSeason ||
       !selectedHomeTeam ||
       !selectedAwayTeam
     ) {
-      setMessage("Vyber platnou soutěž a oba týmy.");
+      setMessage("Vyber sezónu, soutěž a oba týmy.");
       return;
     }
 
@@ -756,6 +785,7 @@ export default function AdminMatchesPage() {
     const { data: insertedMatch, error } = await supabase
       .from("matches")
       .insert({
+        season_id: selectedSeason.id,
         sport_id: selectedSportId,
         competition_id: selectedCompetition.id,
         home_team_id: selectedHomeTeam.id,
@@ -1076,6 +1106,26 @@ export default function AdminMatchesPage() {
           onSubmit={handleAddMatch}
           className="mt-10 grid gap-6 md:grid-cols-2"
         >
+          <label>
+            <span className="mb-2 block text-sm font-bold">
+              Sezóna
+            </span>
+
+            <select
+              value={seasonId}
+              onChange={(event) => setSeasonId(event.target.value)}
+              required
+              className="w-full rounded-xl border border-white/10 bg-black px-4 py-3.5 outline-none focus:border-amber-400"
+            >
+              <option value="">Vyber sezónu</option>
+              {seasons.map((season) => (
+                <option key={season.id} value={season.id}>
+                  {season.is_private ? "🔒 " : "🌍 "}{season.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
           <label>
             <span className="mb-2 block text-sm font-bold">
               Sport
