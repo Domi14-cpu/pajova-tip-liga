@@ -520,7 +520,7 @@ if (session && !wantsRules) {
 
           <Link
             href="/register"
-            className="mt-8 inline-block rounded-xl bg-black px-8 py-4 font-black text-white transition hover:-translate-y-1"
+            className="mt-8 inline-flex w-full items-center justify-center rounded-2xl bg-zinc-950 px-7 py-4 text-base font-black !text-white shadow-lg shadow-black/20 transition hover:-translate-y-0.5 hover:bg-black hover:!text-white focus:outline-none focus:ring-4 focus:ring-black/20 sm:w-auto sm:px-8"
           >
             Vytvořit účet zdarma
           </Link>
