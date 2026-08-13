@@ -3,12 +3,15 @@
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 type Season = { id: string; name: string; is_private: boolean; is_active: boolean; is_member: boolean };
 type Player = { id: string; nickname: string; total_points: number; exact_predictions: number; avatar_url: string | null };
 
 export default function LeaderboardPage() {
+  const searchParams = useSearchParams();
+  const requestedSeasonId = searchParams.get("season");
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [seasonId, setSeasonId] = useState("");
   const [players, setPlayers] = useState<Player[]>([]);
@@ -21,10 +24,14 @@ export default function LeaderboardPage() {
       if (error) { setMessage(`Sezóny se nepodařilo načíst: ${error.message}`); setLoading(false); return; }
       const loaded = (data as Season[] | null) ?? [];
       setSeasons(loaded);
-      setSeasonId(loaded[0]?.id ?? "");
+      setSeasonId(
+        loaded.some((season) => season.id === requestedSeasonId)
+          ? requestedSeasonId ?? ""
+          : loaded[0]?.id ?? ""
+      );
     }
     loadSeasons();
-  }, []);
+  }, [requestedSeasonId]);
 
   useEffect(() => {
     async function loadLeaderboard() {

@@ -11,6 +11,7 @@ const navigation = [
   { name: "Domů", href: "/" },
   { name: "Tipovat", href: "/matches" },
   { name: "Žebříček", href: "/leaderboard" },
+  { name: "Sezóny", href: "/seasons" },
   { name: "Pravidla", href: "/#jak-to-funguje" },
 ];
 
@@ -326,6 +327,14 @@ export default function Navbar() {
         {mobileMenuOpen && (
           <div className="border-t border-white/10 bg-black/95 px-4 pb-5 pt-4 backdrop-blur-2xl lg:hidden">
             <div className="mx-auto grid max-w-7xl gap-3">
+              <Link
+                href="/seasons"
+                onClick={() => setMobileMenuOpen(false)}
+                className="rounded-xl border border-white/10 bg-white/[0.035] px-4 py-3.5 text-sm font-black text-zinc-300"
+              >
+                🗓️ Sezóny
+              </Link>
+
               <Link
                 href="/#jak-to-funguje"
                 onClick={() => setMobileMenuOpen(false)}
