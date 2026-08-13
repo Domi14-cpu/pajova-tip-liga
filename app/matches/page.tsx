@@ -194,7 +194,7 @@ export default function MatchesPage() {
   ).length;
 
   return (
-    <main className="min-h-screen overflow-hidden bg-[#080808] text-white">
+    <main className="min-h-screen overflow-hidden bg-[#080808] pb-[calc(5.5rem+env(safe-area-inset-bottom))] text-white lg:pb-0">
       <section className="relative border-b border-white/10">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_10%,rgba(251,191,36,0.16),transparent_38%)]" />
 
@@ -247,7 +247,11 @@ export default function MatchesPage() {
       </section>
 
       <section className="mx-auto max-w-7xl px-4 py-8 sm:px-5 sm:py-10">
-        <div className="flex gap-2 overflow-x-auto pb-2">
+        <div className="relative -mr-4 sm:mr-0">
+          <div
+            aria-label="Filtr zápasů"
+            className="flex gap-2 overflow-x-auto scroll-px-4 pb-2 pr-8 sm:pr-0"
+          >
           {[
             { value: "all", label: "Všechny zápasy" },
             { value: "open", label: "Otevřené tipování" },
@@ -268,6 +272,9 @@ export default function MatchesPage() {
               {item.label}
             </button>
           ))}
+          </div>
+
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-12 bg-gradient-to-l from-[#080808] to-transparent sm:hidden" />
         </div>
       </section>
 
